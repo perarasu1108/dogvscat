@@ -1,27 +1,41 @@
 import streamlit as st
 import numpy as np
-from tensorflow.keras.models import load_model
+import tensorflow as tf
 from PIL import Image
 
-model = load_model("cat_dog_model.h5", compile=False)
+# Load TFLite model
+interpreter = tf.lite.Interpreter(model_path="model.tflite")
+interpreter.allocate_tensors()
 
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+# UI
 st.title("🐱🐶 Cat vs Dog Classifier")
+st.write("Upload an image to classify")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
-if uploaded_file:
-    img = Image.open(uploaded_file)
-    st.image(img)
-
+def predict(img):
     img = img.resize((150,150))
     img_array = np.array(img)/255
-    img_array = np.expand_dims(img_array, axis=0)
+    img_array = np.expand_dims(img_array, axis=0).astype('float32')
 
-    pred = model.predict(img_array)[0][0]
+    interpreter.set_tensor(input_details[0]['index'], img_array)
+    interpreter.invoke()
+
+    pred = interpreter.get_tensor(output_details[0]['index'])[0][0]
 
     if pred > 0.8:
-        st.write("Dog 🐶")
+        return "Dog 🐶"
     elif pred < 0.2:
-        st.write("Cat 🐱")
+        return "Cat 🐱"
     else:
-        st.write("Other ❓")
+        return "Other ❓"
+
+if uploaded_file:
+    img = Image.open(uploaded_file)
+    st.image(img, caption="Uploaded Image", use_column_width=True)
+
+    result = predict(img)
+    st.success(f"Prediction: {result}")
